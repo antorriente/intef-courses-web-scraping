@@ -4,9 +4,8 @@ from intef_scraper import IntefScraper
 
 
 def configurar_argumentos():
-    """Define los parámetros configurables por consola."""
     parser = argparse.ArgumentParser(
-        description="Scraper de cursos formativos del INTEF - Práctica 1 UOC (M2.851)"
+        description="Scraper de cursos formativos del INTEF"
     )
     parser.add_argument(
         "--headless",
