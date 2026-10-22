@@ -14,7 +14,7 @@ def args_config():
     parser.add_argument(
         "--output",
         type=str,
-        default="dataset/intef_courses.csv"
+        default="csv/intef_courses.csv"
     )
     return parser.parse_args()
 
