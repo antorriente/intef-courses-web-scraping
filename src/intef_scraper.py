@@ -131,7 +131,7 @@ class IntefScraper:
                 "num_enlaces": len(modal.select("a")),
                 "num_imagenes": len(modal.select("img")),
                 "longitud_texto": len(text),
-                "extracto_texto": text[:400],
+                "texto": text[:100000],
                 "url_origen": url_front
             })
             print(f"Open Training Captured: {title[:55]}...")
@@ -207,7 +207,7 @@ class IntefScraper:
                     "num_enlaces": len(box.select("a")),
                     "num_imagenes": len(box.select("img")),
                     "longitud_texto": len(text_box),
-                    "extracto_texto": text_box[:400],
+                    "texto": text_box[:100000],
                     "url_origen": url_course
                 })
                 print(f"Open Training Captured: {title[:52]}...")
@@ -343,7 +343,7 @@ class IntefScraper:
                 "num_enlaces": len(main_node.select("a")),
                 "num_imagenes": len(main_node.select("img")),
                 "longitud_texto": len(combined_text),
-                "extracto_texto": (extra_text or text_course)[:400],
+                "texto": (extra_text or text_course)[:100000],
                 "url_origen": url_course
             })
 
@@ -376,7 +376,7 @@ class IntefScraper:
                     "num_enlaces": len(sec.select("a")),
                     "num_imagenes": len(sec.select("img")),
                     "longitud_texto": len(text_sec),
-                    "extracto_texto": text_sec[:400],
+                    "texto": text_sec[:100000],
                     "url_origen": f"{url_course}#{sec.get('id', '')}"
                 })
 
