@@ -69,22 +69,24 @@ class IntefScraper:
         edition = re.search(r"\d+\s*(?:ª|\.|a)?\s*edici[óo]n|\d+ª\s*Conv_\d{4}", text, re.IGNORECASE)
         format = re.search(r"\b(MOOC|NOOC|SPOOC|Curso)\b", text, re.IGNORECASE)
         skills = re.findall(r"(?:[ÁA]rea\s*\d|[1-6]\.[1-5]|\b[ABC][12]\b)", text)
-        estate = re.search(r"\b(Finalizado|En curso|Abierto|Próximamente)\b", text, re.IGNORECASE)
+        state = re.search(r"\b(Finalizado|En curso|Abierto|Próximamente)\b", text, re.IGNORECASE)
 
         return {
             "modalidad": format.group(0) if format else None,
             "edicion": edition.group(0) if edition else None,
-            "estado": estate.group(0) if estate else None,
+            "estado": state.group(0) if state else None,
             "fechas": " | ".join(dict.fromkeys(dates)) if dates else None,
             "duracion": hours.group(0) if hours else None,
             "competencias": ", ".join(dict.fromkeys(skills)) if skills else None
         }
 
-    ### Block 1: Open Training (/abierta/)
+    ##########################################
+    ### Block 1: Open Training (/abierta/) ###
+    ##########################################
 
     def extract_open_training(self) -> None:
         """
-        Extract data from open training courses.
+        Extract data from Open Training courses.
         """
         if not verify_robots_txt(self.base_url, "/abierta/", self.user_agent):
             return
@@ -93,7 +95,7 @@ class IntefScraper:
 
         # 1. Front Page
         url_front = f"{self.base_url}/abierta/"
-        print(f"Exploring the Block 1 front page.: {url_front}")
+        print(f"Exploring Block 1 Front Page.: {url_front}")
         self.driver.get(url_front)
         safety_pause(2.0, 3.0)
         self._expand_tabs_scroll()
@@ -115,7 +117,6 @@ class IntefScraper:
             self.raw_data.append({
                 "id": modal.get("id") or f"abierta-modal-{len(self.raw_data) + 1}",
                 "titulo": title,
-                "curso_padre": title,
                 "bloque_web": "Formación Abierta",
                 "categoria": "Catálogo Portada Formación Abierta",
                 "modalidad": patterns["modalidad"],
@@ -192,7 +193,6 @@ class IntefScraper:
                 self.raw_data.append({
                     "id": f"abierta-{id_moodle}",
                     "titulo": title,
-                    "curso_padre": title,
                     "bloque_web": "Formación Abierta",
                     "categoria": name_category,
                     "modalidad": patterns["modalidad"],
@@ -202,7 +202,7 @@ class IntefScraper:
                     "duracion": patterns["duracion"],
                     "competencias": patterns["competencias"],
                     "num_secciones": len(box.select(".content, .summary, p")),
-                    "num_recursos_": len(box.select("p, div")),
+                    "num_recursos": len(box.select("p, div")),
                     "num_elementos_lista": len(box.select("li")),
                     "num_enlaces": len(box.select("a")),
                     "num_imagenes": len(box.select("img")),
@@ -248,169 +248,175 @@ class IntefScraper:
         self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         safety_pause(1.0, 1.5)
 
-    # =========================================================================
-    # BLOQUE 2: AULA EN ABIERTO (/aulaenabierto/)
-    # =========================================================================
+    ###########################################
+    ### Block 2: Open Classroom (/abierta/) ###
+    ###########################################
 
-    def extraer_bloque_aula_en_abierto(self) -> None:
-        """Recorre las categorías de Aula en Abierto y extrae Cursos, Secciones y Recursos Didácticos."""
-        ruta_indice = "/aulaenabierto/course/index.php"
-        if not verificar_robots_txt(self.base_url, ruta_indice, self.user_agent):
+    def extract_open_classroom(self) -> None:
+        """
+        Extract courses, sections and teaching resources from Open Classroom categories.
+        """
+        path_index = "/aulaenabierto/course/index.php"
+        if not verify_robots_txt(self.base_url, path_index, self.user_agent):
             return
 
-        url_inicio = f"{self.base_url}{ruta_indice}"
-        print(f"\n[*] Explorando Bloque 2 (Aula en Abierto): {url_inicio}")
-        self.driver.get(url_inicio)
-        pausa_responsable(2.0, 3.0)
+        url_start = f"{self.base_url}{path_index}"
+        print(f"Exploring Block 2 Open Classroom: {url_start}")
+        self.driver.get(url_start)
+        safety_pause(2.0, 3.0)
 
-        enlaces_cat = self.driver.find_elements(By.CSS_SELECTOR, "a[href*='categoryid=']")
-        categorias = []
-        for elem in enlaces_cat:
+        links_category = self.driver.find_elements(By.CSS_SELECTOR, "a[href*='categoryid=']")
+        categories = []
+        for elem in links_category:
             href = elem.get_attribute("href")
-            nombre = elem.text.strip()
-            if href and href not in [c[0] for c in categorias]:
+            name = elem.text.strip()
+            if href and href not in [c[0] for c in categories]:
                 sep = "&" if "?" in href else "?"
-                categorias.append((f"{href}{sep}perpage=100", nombre))
+                categories.append((f"{href}{sep}perpage=100", name))
 
-        cursos_visitados = set()
+        courses = set()
 
-        for url_cat, nombre_cat in categorias:
-            print(f"  -> Explorando categoría: {nombre_cat}")
-            self.driver.get(url_cat)
-            pausa_responsable(1.5, 2.5)
+        for url_category, name_category in categories:
+            print(f"Exploring Category: {name_category}")
+            self.driver.get(url_category)
+            safety_pause(1.5, 2.5)
 
-            soup_cat = BeautifulSoup(self.driver.page_source, "html.parser")
-            for a in soup_cat.select("a[href*='course/view.php?id=']"):
-                url_curso = a["href"].split("#")[0]
-                titulo_crudo = a.get_text(" ", strip=True)
+            soup_category = BeautifulSoup(self.driver.page_source, "html.parser")
+            for a in soup_category.select("a[href*='course/view.php?id=']"):
+                url_course = a["href"].split("#")[0]
+                title = a.get_text(" ", strip=True)
 
-                if url_curso in cursos_visitados or not titulo_crudo:
+                if url_course in courses or not title:
                     continue
-                cursos_visitados.add(url_curso)
+                courses.add(url_course)
 
-                self._extraer_interior_aula_abierto(url_curso, titulo_crudo, nombre_cat)
+                self._extract_inside_open_classroom(url_course, title, name_category)
 
-    def _extraer_interior_aula_abierto(self, url_curso: str, titulo_curso: str, categoria_cruda: str) -> None:
-        """Extrae el curso, lee su página de Guía/Introducción si existe, y extrae sus secciones y recursos."""
-        print(f"    -> [Aula Abierto] Analizando curso y recursos: {titulo_curso[:50]}...")
+    def _extract_inside_open_classroom(self, url_course: str, title_course: str, category: str) -> None:
+        """
+        Extract courses, sections and resources.
+        """
+        print(f"Analizing Courses and Resources: {title_course[:50]}...")
         try:
-            self.driver.get(url_curso)
-            pausa_responsable(1.2, 2.0)
+            self.driver.get(url_course)
+            safety_pause(1.2, 2.0)
             soup = BeautifulSoup(self.driver.page_source, "html.parser")
 
             main_node = soup.select_one("#region-main, .course-content") or soup
-            self._limpiar_ruido_dom(main_node)
+            self._clean_noise_dom(main_node)
 
-            texto_curso = main_node.get_text(" ", strip=True)
-            id_match = re.search(r"id=(\d+)", url_curso)
-            id_curso = f"aula-{id_match.group(1)}" if id_match else f"aula-{len(self.registros_crudos)}"
+            text_course = main_node.get_text(" ", strip=True)
+            id_match = re.search(r"id=(\d+)", url_course)
+            id_course = f"aula-{id_match.group(1)}" if id_match else f"aula-{len(self.raw_data)}"
 
-            secciones = main_node.select("li.section.main, .course-section")
-            libros_paginas = main_node.select("a[href*='mod/book/'], a[href*='mod/page/']")
-            actividades_todas = main_node.select("li.activity")
+            sections = main_node.select("li.section.main, .course-section")
+            books_pages = main_node.select("a[href*='mod/book/'], a[href*='mod/page/']")
+            activities = main_node.select("li.activity")
 
-            # Si el curso tiene una página de 'Guía', 'Información básica' o 'Introducción', la leemos para enriquecer el texto
-            texto_guia_extra = ""
-            for enlace_guia in libros_paginas[:2]:
-                nombre_enlace = enlace_guia.get_text(" ", strip=True).lower()
-                if any(p in nombre_enlace for p in ["guía", "información", "introducción", "presentación", "créditos"]):
-                    texto_guia_extra = self._leer_subpagina_guia(enlace_guia.get("href", ""))
-                    if texto_guia_extra:
+            # Read course pages to add the information to the dataset.
+            extra_text = ""
+            for link_guide in books_pages[:2]:
+                name_link = link_guide.get_text(" ", strip=True).lower()
+                if any(p in name_link for p in ["guía", "información", "introducción", "presentación", "créditos"]):
+                    extra_text = self._read_subpage_guide(link_guide.get("href", ""))
+                    if extra_text:
                         break
 
-            texto_combinado = f"{titulo_curso} {texto_curso} {texto_guia_extra}".strip()
-            patrones = self._extraer_patrones_crudos(texto_combinado)
+            combined_text = f"{title_course} {text_course} {extra_text}".strip()
+            patterns = self._extract_patterns(combined_text)
 
-            # 1. Registro del Curso Completo
-            self.registros_crudos.append({
-                "id_elemento": id_curso,
-                "titulo_crudo": titulo_curso,
-                "curso_padre_crudo": titulo_curso,
+            # 1. Full Course Register
+            self.raw_data.append({
+                "id": id_course,
+                "titulo": title_course,
                 "bloque_web": "Aula en Abierto",
-                "nivel_granularidad": "Curso Completo",
-                "categoria_cruda": categoria_cruda,
-                "modalidad_cruda": patrones["modalidad_cruda"] or "Curso",
-                "edicion_cruda": patrones["edicion_cruda"],
-                "estado_crudo": "Abierto Permanente",
-                "fechas_texto_crudo": patrones["fechas_crudo"],
-                "duracion_texto_crudo": patrones["duracion_cruda"],
-                "competencias_texto_crudo": patrones["competencias_crudo"],
-                "num_secciones_o_temas": len(secciones),
-                "num_recursos_libros_paginas": len(libros_paginas),
-                "num_items_lista": len(actividades_todas) or len(main_node.select("li")),
+                "categoria": category,
+                "modalidad": patterns["modalidad"] or "Curso",
+                "edicion": patterns["edicion"],
+                "estado": "Abierto Permanente",
+                "fechas": patterns["fechas"],
+                "duracion": patterns["duracion"],
+                "competencias": patterns["competencias"],
+                "num_secciones": len(sections),
+                "num_recursos": len(books_pages),
+                "num_elementos_lista": len(activities) or len(main_node.select("li")),
                 "num_enlaces": len(main_node.select("a")),
                 "num_imagenes": len(main_node.select("img")),
-                "longitud_texto_chars": len(texto_combinado),
-                "extracto_texto_crudo": (texto_guia_extra or texto_curso)[:400],
-                "url_origen": url_curso
+                "longitud_texto": len(combined_text),
+                "extracto_texto": (extra_text or text_course)[:400],
+                "url_origen": url_course
             })
 
-            # 2. Registros de cada Sección / Unidad Didáctica y sus Recursos principales
-            for sec in secciones:
-                titulo_sec_node = sec.select_one(".sectionname, h3, h4")
-                titulo_sec = titulo_sec_node.get_text(" ", strip=True) if titulo_sec_node else None
-                texto_sec = sec.get_text(" ", strip=True)
+            # 2. Registers for each section and their main resources.
+            for sec in sections:
+                title_sec_node = sec.select_one(".sectionname, h3, h4")
+                title_sec = title_sec_node.get_text(" ", strip=True) if title_sec_node else None
+                text_sec = sec.get_text(" ", strip=True)
 
-                if not titulo_sec or len(texto_sec) < 30:
+                if not title_sec_node or len(text_sec) < 30:
                     continue
 
-                patrones_sec = self._extraer_patrones_crudos(f"{titulo_sec} {texto_sec}")
-                libros_sec = sec.select("a[href*='mod/book/'], a[href*='mod/page/']")
+                patterns_sec = self._extract_patterns(f"{title_sec} {text_sec}")
+                books_sec = sec.select("a[href*='mod/book/'], a[href*='mod/page/']")
 
-                self.registros_crudos.append({
-                    "id_elemento": f"{id_curso}-{sec.get('id', 'sec')}",
-                    "titulo_crudo": titulo_sec,
-                    "curso_padre_crudo": titulo_curso,
+                self.raw_data.append({
+                    "id": f"{id_course}-{sec.get('id', 'sec')}",
+                    "titulo": title_sec,
                     "bloque_web": "Aula en Abierto",
-                    "nivel_granularidad": "Módulo / Sección",
-                    "categoria_cruda": categoria_cruda,
-                    "modalidad_cruda": patrones["modalidad_cruda"] or "Curso",
-                    "edicion_cruda": patrones["edicion_cruda"],
-                    "estado_crudo": "Módulo Activo",
-                    "fechas_texto_crudo": patrones_sec["fechas_crudo"] or patrones["fechas_crudo"],
-                    "duracion_texto_crudo": patrones_sec["duracion_cruda"] or patrones["duracion_cruda"],
-                    "competencias_texto_crudo": patrones_sec["competencias_crudo"] or patrones["competencias_crudo"],
-                    "num_secciones_o_temas": 1,
-                    "num_recursos_libros_paginas": len(libros_sec),
-                    "num_items_lista": len(sec.select("li.activity, li")),
+                    "categoria": category,
+                    "modalidad": patterns["modalidad"] or "Curso",
+                    "edicion": patterns["edicion"],
+                    "estado": "Módulo Activo",
+                    "fechas": patterns_sec["fechas"] or patterns["fechas"],
+                    "duracion": patterns_sec["duracion"] or patterns["duracion"],
+                    "competencias": patterns_sec["competencias"] or patterns["competencias"],
+                    "num_secciones": 1,
+                    "num_recursos": len(books_sec),
+                    "num_elementos_lista": len(sec.select("li.activity, li")),
                     "num_enlaces": len(sec.select("a")),
                     "num_imagenes": len(sec.select("img")),
-                    "longitud_texto_chars": len(texto_sec),
-                    "extracto_texto_crudo": texto_sec[:400],
-                    "url_origen": f"{url_curso}#{sec.get('id', '')}"
+                    "longitud_texto": len(text_sec),
+                    "extracto_texto": text_sec[:400],
+                    "url_origen": f"{url_course}#{sec.get('id', '')}"
                 })
 
         except Exception as error:
-            print(f"    [!] Error en {url_curso}: {error}")
+            print(f"Error in {url_course}: {error}")
 
-    def _leer_subpagina_guia(self, url_guia: str) -> str:
-        """Entra en la página de Guía/Introducción del curso para capturar horas, fechas y competencias reales."""
-        if not url_guia or "formacion.intef.es" not in url_guia:
+    def _read_subpage_guide(self, url_guide: str) -> str:
+        """
+        Extract actual hours, dates and skills from the Guide/Introduction page of each course.
+        """
+        if not url_guide or "formacion.intef.es" not in url_guide:
             return ""
         try:
-            self.driver.get(url_guia)
-            pausa_responsable(0.8, 1.4)
-            soup_guia = BeautifulSoup(self.driver.page_source, "html.parser")
-            main_guia = soup_guia.select_one("#region-main, .book_content, main") or soup_guia
-            self._limpiar_ruido_dom(main_guia)
-            return main_guia.get_text(" ", strip=True)
+            self.driver.get(url_guide)
+            safety_pause(0.8, 1.4)
+            soup_guide = BeautifulSoup(self.driver.page_source, "html.parser")
+            main_guide = soup_guide.select_one("#region-main, .book_content, main") or soup_guide
+            self._clean_noise_dom(main_guide)
+            return main_guide.get_text(" ", strip=True)
         except Exception:
             return ""
 
-    def guardar_csv(self, ruta_salida: str) -> None:
-        """Guarda los datos crudos en un archivo CSV."""
-        carpeta = os.path.dirname(ruta_salida)
-        if carpeta:
-            os.makedirs(carpeta, exist_ok=True)
+    def save_dataset(self, output_path: str) -> None:
+        """
+        Save the final dataset as a CSV file.
+        """
+        folder = os.path.dirname(output_path)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
 
-        df = pd.DataFrame(self.registros_crudos)
-        df.to_csv(ruta_salida, index=False, encoding="utf-8")
+        df = pd.DataFrame(self.raw_data)
+        df.to_csv(output_path, index=False, encoding="utf-8")
 
-        print(f"\n[OK] Dataset en crudo guardado en: {ruta_salida}")
-        print(f"[OK] Dimensiones: {df.shape[0]} filas x {df.shape[1]} columnas")
+        print(f"Dataset Saved: {output_path}")
+        print(f"Dimensions: {df.shape[0]} rows x {df.shape[1]} columns")
 
-    def cerrar(self) -> None:
-        """Cierra el navegador."""
+    def close(self) -> None:
+        """
+        Close browser.
+        """
         if self.driver:
             self.driver.quit()
-            print("[*] Navegador cerrado.")
+            print("Browser Closed")

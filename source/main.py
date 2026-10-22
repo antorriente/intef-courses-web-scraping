@@ -5,7 +5,7 @@ from intef_scraper import IntefScraper
 
 def args_config():
     parser = argparse.ArgumentParser(
-        description="Scraper de Cursos Formativos del INTEF"
+        description="Scraper of INTEF Courses"
     )
     parser.add_argument(
         "--headless",
@@ -14,35 +14,29 @@ def args_config():
     parser.add_argument(
         "--output",
         type=str,
-        default="dataset/formacion_intef.csv"
+        default="dataset/intef_courses.csv"
     )
     return parser.parse_args()
 
 
 def main():
     args = args_config()
-    inicio = time.time()
 
+    start = time.time()
     print("-" * 70)
-    print(" WEB SCRAPER: CURSOS FORMATIVOS INTEF")
+    print(" WEB SCRAPER: INTEF TRAINING COURSES ")
     print("-" * 70)
 
     scraper = IntefScraper(headless=args.headless)
-    try:
-        scraper.extraer_bloque_abierta()
 
-        scraper.extraer_bloque_aula_en_abierto()
+    scraper.extract_open_training()
+    scraper.extract_open_classroom()
+    scraper.save_dataset(output_path=args.output)
+    scraper.close()
 
-        scraper.guardar_csv(ruta_salida=args.output)
-
-    except KeyboardInterrupt:
-        print("\n Process stopped by the user.")
-    finally:
-        scraper.cerrar()
-
-    tiempo_total = round(time.time() - inicio, 2)
+    total_time = round(time.time() - start, 2)
     print("-" * 70)
-    print(f" EXTRACCIÓN COMPLETADA EN {tiempo_total} SEGUNDOS")
+    print(f" PROCESS COMPLETED IN {total_time} SECONDS ")
     print("-" * 70)
 
 
