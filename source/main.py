@@ -29,13 +29,10 @@ def main():
 
     scraper = IntefScraper(headless=args.headless)
     try:
-        # Bloque 1: Formación Abierta (MOOC, NOOC, SPOOC)
         scraper.extraer_bloque_abierta()
 
-        # Bloque 2: Aula en Abierto (Cursos Tutorizados en Abierto)
         scraper.extraer_bloque_aula_en_abierto()
 
-        # Exportar del dataset
         scraper.guardar_csv(ruta_salida=args.output)
 
     except KeyboardInterrupt:

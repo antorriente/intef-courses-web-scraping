@@ -8,237 +8,245 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
-from utils import verificar_robots_txt, pausa_responsable
+from utils import verify_robots_txt, safety_pause
 
 
 class IntefScraper:
-    """Extrae en crudo (raw data) el catálogo completo de Formación Abierta y Aula en Abierto."""
+    """
+    Process of extracting INTEF training courses using a web scraper.
+    """
 
     def __init__(self, headless: bool = False):
-        self.url_base = "https://formacion.intef.es"
+        self.base_url = "https://formacion.intef.es"
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/128.0.0.0 Safari/537.36 (UOC-DataScience-Scraper/1.0)"
+            "Chrome/128.0.0.0 Safari/537.36 (UOC-DataScienceTypology-WebScraper/1.0)"
         )
-        self.driver = self._configurar_driver(headless)
-        self.registros_crudos = []
+        self.driver = self._driver_config(headless)
+        self.raw_data = []
 
-    def _configurar_driver(self, headless: bool) -> webdriver.Chrome:
-        """Arranca Chrome y verifica el User-Agent desde el navegador."""
-        opciones = Options()
+    def _driver_config(self, headless: bool) -> webdriver.Chrome:
+        """
+        Launch Chrome and verify the User-Agent from the browser.
+        """
+        options = Options()
         if headless:
-            opciones.add_argument("--headless=new")
+            options.add_argument("--headless=new")
 
-        opciones.add_argument(f"user-agent={self.user_agent}")
-        opciones.add_argument("--window-size=1920,1080")
-        opciones.add_argument("--disable-gpu")
-        opciones.add_argument("--no-sandbox")
-        opciones.add_argument("--log-level=3")
-        opciones.add_argument("--disable-background-networking")
-        opciones.add_experimental_option("excludeSwitches", ["enable-logging"])
+        options.add_argument(f"user-agent={self.user_agent}")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--log-level=3")
+        options.add_argument("--disable-background-networking")
+        options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
-        servicio = Service(ChromeDriverManager().install(), log_output=os.devnull)
-        driver = webdriver.Chrome(service=servicio, options=opciones)
+        service = Service(ChromeDriverManager().install(), log_output=os.devnull)
+        driver = webdriver.Chrome(service=service, options=options)
 
-        ua_navegador = driver.execute_script("return navigator.userAgent;")
-        print(f"[*] WebDriver iniciado. User-Agent activo: {ua_navegador}\n")
+        ua_browser = driver.execute_script("return navigator.userAgent;")
+        print(f"WebDriver started. User-Agent active.: {ua_browser}\n")
         return driver
 
-    def _limpiar_ruido_dom(self, soup_node) -> None:
-        """Elimina etiquetas invisibles de sistema (<noscript>, <script>, botones de cerrar) antes de leer."""
+    def _clean_noise_dom(self, soup_node) -> None:
+        """
+        Remove hidden system elements (<noscript>, <script>, and close buttons) before reading
+        """
         for tag in soup_node.select("noscript, script, style, button.close, .sr-only, .accesshide"):
             tag.decompose()
 
-    def _extraer_patrones_crudos(self, texto: str) -> dict:
-        """Extrae menciones en bruto de fechas, horas, ediciones y competencias presentes en el texto."""
-        fechas = re.findall(
+    def _extract_patterns(self, text: str) -> dict:
+        """
+        Extract attributes using regular expressions.
+        """
+        dates = re.findall(
             r"\d{1,2}\s+(?:de\s+)?[a-zA-Záéíóú]{3,12}[\s,]+\d{4}|\d{2}/\d{2}/\d{4}"
             r"|(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+\d{4}",
-            texto, re.IGNORECASE
+            text, re.IGNORECASE
         )
-        horas = re.search(r"\d{1,3}\s*(?:horas|h\b)", texto, re.IGNORECASE)
-        edicion = re.search(r"\d+\s*(?:ª|\.|a)?\s*edici[óo]n|\d+ª\s*Conv_\d{4}", texto, re.IGNORECASE)
-        modalidad = re.search(r"\b(MOOC|NOOC|SPOOC|Curso)\b", texto, re.IGNORECASE)
-        competencias = re.findall(r"(?:[ÁA]rea\s*\d|[1-6]\.[1-5]|\b[ABC][12]\b)", texto)
-        estado = re.search(r"\b(Finalizado|En curso|Abierto|Próximamente)\b", texto, re.IGNORECASE)
+        hours = re.search(r"\d{1,3}\s*(?:horas|h\b)", text, re.IGNORECASE)
+        edition = re.search(r"\d+\s*(?:ª|\.|a)?\s*edici[óo]n|\d+ª\s*Conv_\d{4}", text, re.IGNORECASE)
+        format = re.search(r"\b(MOOC|NOOC|SPOOC|Curso)\b", text, re.IGNORECASE)
+        skills = re.findall(r"(?:[ÁA]rea\s*\d|[1-6]\.[1-5]|\b[ABC][12]\b)", text)
+        estate = re.search(r"\b(Finalizado|En curso|Abierto|Próximamente)\b", text, re.IGNORECASE)
 
         return {
-            "modalidad_cruda": modalidad.group(0) if modalidad else None,
-            "edicion_cruda": edicion.group(0) if edicion else None,
-            "estado_crudo": estado.group(0) if estado else None,
-            "fechas_crudo": " | ".join(dict.fromkeys(fechas)) if fechas else None,
-            "duracion_cruda": horas.group(0) if horas else None,
-            "competencias_crudo": ", ".join(dict.fromkeys(competencias)) if competencias else None
+            "modalidad": format.group(0) if format else None,
+            "edicion": edition.group(0) if edition else None,
+            "estado": estate.group(0) if estate else None,
+            "fechas": " | ".join(dict.fromkeys(dates)) if dates else None,
+            "duracion": hours.group(0) if hours else None,
+            "competencias": ", ".join(dict.fromkeys(skills)) if skills else None
         }
 
-    # =========================================================================
-    # BLOQUE 1: FORMACIÓN ABIERTA (/abierta/)
-    # =========================================================================
+    ### Block 1: Open Training (/abierta/)
 
-    def extraer_bloque_abierta(self) -> None:
-        """Extrae las fichas modales de portada y todas las categorías de /abierta/course/index.php."""
-        if not verificar_robots_txt(self.url_base, "/abierta/", self.user_agent):
+    def extract_open_training(self) -> None:
+        """
+        Extract data from open training courses.
+        """
+        if not verify_robots_txt(self.base_url, "/abierta/", self.user_agent):
             return
 
-        titulos_vistos = set()
+        titles = set()
 
-        # 1. Portada de Formación Abierta (Modales completos)
-        url_portada = f"{self.url_base}/abierta/"
-        print(f"[*] Explorando portada de Bloque 1: {url_portada}")
-        self.driver.get(url_portada)
-        pausa_responsable(2.0, 3.0)
-        self._desplegar_pestanas_y_scroll()
+        # 1. Front Page
+        url_front = f"{self.base_url}/abierta/"
+        print(f"Exploring the Block 1 front page.: {url_front}")
+        self.driver.get(url_front)
+        safety_pause(2.0, 3.0)
+        self._expand_tabs_scroll()
 
-        soup_portada = BeautifulSoup(self.driver.page_source, "html.parser")
-        for modal in soup_portada.select(".modal-content"):
-            titulo_nodo = modal.select_one(".modal-title, h3, h4")
-            if not titulo_nodo:
+        soup_front = BeautifulSoup(self.driver.page_source, "html.parser")
+        for modal in soup_front.select(".modal-content"):
+            node_title = modal.select_one(".modal-title, h3, h4")
+            if not node_title:
                 continue
-            titulo = titulo_nodo.get_text(" ", strip=True)
-            if len(titulo) < 6 or titulo in titulos_vistos:
+            title = node_title.get_text(" ", strip=True)
+            if len(title) < 6 or title in titles:
                 continue
-            titulos_vistos.add(titulo)
+            titles.add(title)
 
-            self._limpiar_ruido_dom(modal)
-            texto = modal.get_text(" ", strip=True)
-            patrones = self._extraer_patrones_crudos(f"{titulo} {texto}")
+            self._clean_noise_dom(modal)
+            text = modal.get_text(" ", strip=True)
+            patterns = self._extract_patterns(f"{title} {text}")
 
-            self.registros_crudos.append({
-                "id_elemento": modal.get("id") or f"abierta-modal-{len(self.registros_crudos) + 1}",
-                "titulo_crudo": titulo,
-                "curso_padre_crudo": titulo,
+            self.raw_data.append({
+                "id": modal.get("id") or f"abierta-modal-{len(self.raw_data) + 1}",
+                "titulo": title,
+                "curso_padre": title,
                 "bloque_web": "Formación Abierta",
-                "nivel_granularidad": "Curso Completo (Modal)",
-                "categoria_cruda": "Catálogo Portada Abierta",
-                "modalidad_cruda": patrones["modalidad_cruda"],
-                "edicion_cruda": patrones["edicion_cruda"],
-                "estado_crudo": patrones["estado_crudo"] or "Publicado en Portada",
-                "fechas_texto_crudo": patrones["fechas_crudo"],
-                "duracion_texto_crudo": patrones["duracion_cruda"],
-                "competencias_texto_crudo": patrones["competencias_crudo"],
-                "num_secciones_o_temas": len(modal.select("h4, h5, strong")),
-                "num_recursos_libros_paginas": len(modal.select("p")),
-                "num_items_lista": len(modal.select("li")),
+                "categoria": "Catálogo Portada Formación Abierta",
+                "modalidad": patterns["modalidad"],
+                "edicion": patterns["edicion"],
+                "estado": patterns["estado"] or "Publicado en Portada",
+                "fechas": patterns["fechas"],
+                "duracion": patterns["duracion"],
+                "competencias": patterns["competencias"],
+                "num_secciones": len(modal.select("h4, h5, strong")),
+                "num_recursos": len(modal.select("p")),
+                "num_elementos_lista": len(modal.select("li")),
                 "num_enlaces": len(modal.select("a")),
                 "num_imagenes": len(modal.select("img")),
-                "longitud_texto_chars": len(texto),
-                "extracto_texto_crudo": texto[:400],
-                "url_origen": url_portada
+                "longitud_texto": len(text),
+                "extracto_texto": text[:400],
+                "url_origen": url_front
             })
-            print(f"    -> [Abierta Modal] Capturado: {titulo[:55]}...")
+            print(f"Open Training Captured: {title[:55]}...")
 
-        # 2. Árbol de categorías de /abierta/course/index.php (MOOC, NOOC, SPOOC, Ediciones anteriores)
-        url_indice = f"{self.url_base}/abierta/course/index.php"
-        print(f"[*] Descubriendo categorías en: {url_indice}")
-        self.driver.get(url_indice)
-        pausa_responsable(2.0, 3.0)
+        # 2. Category Tree
+        url_index = f"{self.base_url}/abierta/course/index.php"
+        print(f"Finding Categories: {url_index}")
+        self.driver.get(url_index)
+        safety_pause(2.0, 3.0)
 
-        soup_indice = BeautifulSoup(self.driver.page_source, "html.parser")
-        urls_categorias = [(f"{url_indice}?perpage=100", "Índice General Abierta")]
+        soup_index = BeautifulSoup(self.driver.page_source, "html.parser")
+        urls_categories = [(f"{url_index}?perpage=100", "Índice General Abierta")]
 
-        for a_cat in soup_indice.select("a[href*='categoryid=']"):
-            href = a_cat.get("href", "")
-            nombre_cat = a_cat.get_text(" ", strip=True) or "Categoría Abierta"
+        for category in soup_index.select("a[href*='categoryid=']"):
+            href = category.get("href", "")
+            name_category = category.get_text(" ", strip=True) or "Categoría Abierta"
             if href.startswith("/"):
-                href = f"{self.url_base}{href}"
+                href = f"{self.base_url}{href}"
             if href and "formacion.intef.es" in href:
                 sep = "&" if "?" in href else "?"
                 url_cat_100 = f"{href}{sep}perpage=100"
-                if url_cat_100 not in [c[0] for c in urls_categorias]:
-                    urls_categorias.append((url_cat_100, nombre_cat))
+                if url_cat_100 not in [c[0] for c in urls_categories]:
+                    urls_categories.append((url_cat_100, name_category))
 
-        for url_cat, nombre_cat in urls_categorias:
-            print(f"  -> Explorando categoría Abierta: {nombre_cat}")
-            self.driver.get(url_cat)
-            pausa_responsable(1.5, 2.5)
+        for url_category, name_category in urls_categories:
+            print(f"Exploring Open Category: {name_category}")
+            self.driver.get(url_category)
+            safety_pause(1.5, 2.5)
 
-            # Desplegamos subcategorías colapsadas y todos los iconos 'i' (.moreinfo a) con AJAX
-            self._desplegar_info_ajax_moodle()
-            soup_cat = BeautifulSoup(self.driver.page_source, "html.parser")
+            # Expand collapsed subcategories and all information messages with AJAX
+            self._expand_info_ajax_moodle()
+            soup_category = BeautifulSoup(self.driver.page_source, "html.parser")
 
-            # Si al expandir aparecen nuevas subcategorías, las añadimos a la cola
-            for sub_a in soup_cat.select("a[href*='categoryid=']"):
-                sub_href = sub_a.get("href", "")
+            # If expanding reveals new subcategories, add them to the queue
+            for sub_category in soup_category.select("a[href*='categoryid=']"):
+                sub_href = sub_category.get("href", "")
                 if sub_href.startswith("/"):
-                    sub_href = f"{self.url_base}{sub_href}"
+                    sub_href = f"{self.base_url}{sub_href}"
                 sep = "&" if "?" in sub_href else "?"
                 sub_url_100 = f"{sub_href}{sep}perpage=100"
-                if "formacion.intef.es" in sub_url_100 and sub_url_100 not in [c[0] for c in urls_categorias]:
-                    urls_categorias.append((sub_url_100, sub_a.get_text(" ", strip=True) or nombre_cat))
+                if "formacion.intef.es" in sub_url_100 and sub_url_100 not in [c[0] for c in urls_categories]:
+                    urls_categories.append((sub_url_100, sub_category.get_text(" ", strip=True) or name_category))
 
-            for box in soup_cat.select(".coursebox"):
+            for box in soup_category.select(".coursebox"):
                 enlace = box.select_one(".coursename a")
                 if not enlace:
                     continue
-                titulo = enlace.get_text(" ", strip=True)
-                if titulo in titulos_vistos:
+                title = enlace.get_text(" ", strip=True)
+                if title in titles:
                     continue
-                titulos_vistos.add(titulo)
+                titles.add(title)
 
-                self._limpiar_ruido_dom(box)
-                url_curso = enlace.get("href", url_cat)
+                self._clean_noise_dom(box)
+                url_course = enlace.get("href", url_category)
                 id_moodle = box.get("data-courseid") or "s/n"
-                texto_box = box.get_text(" ", strip=True)
-                patrones = self._extraer_patrones_crudos(f"{titulo} {texto_box}")
+                text_box = box.get_text(" ", strip=True)
+                patterns = self._extract_patterns(f"{title} {text_box}")
 
-                self.registros_crudos.append({
-                    "id_elemento": f"abierta-{id_moodle}",
-                    "titulo_crudo": titulo,
-                    "curso_padre_crudo": titulo,
+                self.raw_data.append({
+                    "id": f"abierta-{id_moodle}",
+                    "titulo": title,
+                    "curso_padre": title,
                     "bloque_web": "Formación Abierta",
-                    "nivel_granularidad": "Curso Completo (Catálogo)",
-                    "categoria_cruda": nombre_cat,
-                    "modalidad_cruda": patrones["modalidad_cruda"],
-                    "edicion_cruda": patrones["edicion_cruda"],
-                    "estado_crudo": patrones["estado_crudo"] or "Catálogo Histórico",
-                    "fechas_texto_crudo": patrones["fechas_crudo"],
-                    "duracion_texto_crudo": patrones["duracion_cruda"],
-                    "competencias_texto_crudo": patrones["competencias_crudo"],
-                    "num_secciones_o_temas": len(box.select(".content, .summary, p")),
-                    "num_recursos_libros_paginas": len(box.select("p, div")),
-                    "num_items_lista": len(box.select("li")),
+                    "categoria": name_category,
+                    "modalidad": patterns["modalidad"],
+                    "edicion": patterns["edicion"],
+                    "estado": patterns["estado"] or "Catálogo Histórico",
+                    "fechas": patterns["fechas"],
+                    "duracion": patterns["duracion"],
+                    "competencias": patterns["competencias"],
+                    "num_secciones": len(box.select(".content, .summary, p")),
+                    "num_recursos_": len(box.select("p, div")),
+                    "num_elementos_lista": len(box.select("li")),
                     "num_enlaces": len(box.select("a")),
                     "num_imagenes": len(box.select("img")),
-                    "longitud_texto_chars": len(texto_box),
-                    "extracto_texto_crudo": texto_box[:400],
-                    "url_origen": url_curso
+                    "longitud_texto": len(text_box),
+                    "extracto_texto": text_box[:400],
+                    "url_origen": url_course
                 })
-                print(f"    -> [Abierta Catálogo] Capturado: {titulo[:52]} ({len(texto_box)} chars)")
+                print(f"Open Training Captured: {title[:52]}...")
 
-    def _desplegar_info_ajax_moodle(self) -> None:
-        """Expande subcategorías y clica en los iconos .moreinfo para que Moodle inyecte las descripciones."""
+    def _expand_info_ajax_moodle(self) -> None:
+        """
+        Expand subcategories and click the information messages to retrieve the data.
+        """
         try:
-            botones_exp = self.driver.find_elements(By.CSS_SELECTOR, ".collapseexpand, .category.notloaded a")
-            for b in botones_exp[:8]:
+            buttons_exp = self.driver.find_elements(By.CSS_SELECTOR, ".collapseexpand, .category.notloaded a")
+            for b in buttons_exp[:8]:
                 try:
                     self.driver.execute_script("arguments[0].click();", b)
                 except Exception:
                     pass
-            pausa_responsable(1.0, 1.5)
+            safety_pause(1.0, 1.5)
 
-            iconos = self.driver.find_elements(By.CSS_SELECTOR, ".coursebox .moreinfo a")
-            if iconos:
-                for icono in iconos:
+            icons = self.driver.find_elements(By.CSS_SELECTOR, ".coursebox .moreinfo a")
+            if icons:
+                for icon in icons:
                     try:
-                        self.driver.execute_script("arguments[0].click();", icono)
+                        self.driver.execute_script("arguments[0].click();", icon)
                     except Exception:
                         pass
-                pausa_responsable(2.5, 4.0)
+                safety_pause(2.5, 4.0)
         except Exception:
             pass
 
-    def _desplegar_pestanas_y_scroll(self) -> None:
-        """Clica en filtros de portada y hace scroll completo."""
+    def _expand_tabs_scroll(self) -> None:
+        """Click the front page filters and scroll through the entire page."""
         try:
             for b in self.driver.find_elements(By.CSS_SELECTOR, "button, .nav-link")[:10]:
                 if any(w in (b.text or "").lower() for w in ["finalizado", "todos", "más"]):
                     self.driver.execute_script("arguments[0].click();", b)
-                    pausa_responsable(0.5, 1.0)
+                    safety_pause(0.5, 1.0)
         except Exception:
             pass
         self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        pausa_responsable(1.0, 1.5)
+        safety_pause(1.0, 1.5)
 
     # =========================================================================
     # BLOQUE 2: AULA EN ABIERTO (/aulaenabierto/)
@@ -247,10 +255,10 @@ class IntefScraper:
     def extraer_bloque_aula_en_abierto(self) -> None:
         """Recorre las categorías de Aula en Abierto y extrae Cursos, Secciones y Recursos Didácticos."""
         ruta_indice = "/aulaenabierto/course/index.php"
-        if not verificar_robots_txt(self.url_base, ruta_indice, self.user_agent):
+        if not verificar_robots_txt(self.base_url, ruta_indice, self.user_agent):
             return
 
-        url_inicio = f"{self.url_base}{ruta_indice}"
+        url_inicio = f"{self.base_url}{ruta_indice}"
         print(f"\n[*] Explorando Bloque 2 (Aula en Abierto): {url_inicio}")
         self.driver.get(url_inicio)
         pausa_responsable(2.0, 3.0)
